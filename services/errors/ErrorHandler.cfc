@@ -1,10 +1,10 @@
 component output=false {
 
 	public void function raiseError( required struct error ) output=false {
-		var client = _getSentryClient();
+		var sentryClient = _getSentryClient();
 
-		if ( !IsNull( client ) ) {
-			client.captureException( arguments.error );
+		if ( !IsNull( sentryClient ) ) {
+			sentryClient.captureException( exception=arguments.error );
 		}
 	}
 
