@@ -1,0 +1,24 @@
+{
+    "name":"PresideCMS Extension: Sentry error reporting",
+    "type":"preside-ext-sentry",
+    "version":"VERSION_NUMBER",
+    "location":"https://github.com/pixl8/preside-ext-sentry/archive/vVERSION_NUMBER.zip",
+    "author":"Pixl8 Interactive",
+    "directory":"application/extensions",
+    "homepage":"https://github.com/pixl8/preside-ext-sentry",
+    "documentation":"https://github.com/pixl8/preside-ext-sentry",
+    "repository":{
+        "type":"git",
+        "URL":"https://github.com/pixl8/preside-ext-sentry"
+    },
+    "bugs":"https://github.com/pixl8/preside-ext-sentry/issues",
+    "slug":"preside-ext-sentry",
+    "projectURL":"",
+    "ignore":[
+        ".git/*",
+        ".gitignore",
+        ".travis.yml",
+        ".twgit_features_subject",
+        "*.sh"
+    ]
+}
