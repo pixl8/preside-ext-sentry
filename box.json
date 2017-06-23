@@ -1,6 +1,6 @@
 {
     "name":"PresideCMS Extension: Sentry error reporting",
-    "type":"preside-ext-sentry",
+    "type":"preside-extensions",
     "version":"1.0.2",
     "location":"https://github.com/pixl8/preside-ext-sentry/archive/v1.0.2.zip",
     "author":"Pixl8 Interactive",
