@@ -1,15 +1,16 @@
-component output=false {
+component {
 
 // CONSTRUCTOR
-	public any function init( required string apiKey, string sentryProtocolVersion="2.0" ) output=false {
+	public any function init( required string apiKey, required string environment, string sentryProtocolVersion="2.0" ) {
 		_setCredentials( arguments.apiKey );
+		_setEnvironment( arguments.environment );
 		_setProtocolVersion( arguments.sentryProtocolVersion );
 
 		return this;
 	}
 
 // PUBLIC API METHODS
-	public void function captureException( required struct exception, struct tags={}, struct extraInfo={} ) output=false {
+	public void function captureException( required struct exception, struct tags={}, struct extraInfo={} ) {
 		var e           = arguments.exception;
 		var errorType   = ( e.type ?: "Unknown type" ) & " error";
 		var message     = e.message ?: "";
@@ -36,7 +37,7 @@ component output=false {
 
 
 // PRIVATE HELPERS
-	private void function _setCredentials( required string apiKey ) output=false {
+	private void function _setCredentials( required string apiKey ) {
 		var regex = "^(https?://)((.*?):(.*?)@)(.*?)/([1-9][0-9]*)$";
 
 		_setEndpoint( ReReplaceNoCase( arguments.apiKey, regex, "\1\5" ) & "/api/store/" );
@@ -45,7 +46,7 @@ component output=false {
 		_setProjectId( ReReplaceNoCase( arguments.apiKey, regex, "\6" ) );
 	}
 
-	private array function _convertTagContext( required array tagContext ) output=false {
+	private array function _convertTagContext( required array tagContext ) {
 		var frames = [];
 
 		for( var tc in arguments.tagContext ) {
@@ -76,7 +77,7 @@ component output=false {
 		return frames;
 	}
 
-	private void function _apiCall( required struct packet ) output=false {
+	private void function _apiCall( required struct packet ) {
 		var timeVars        = _getTimeVars();
 
 		packet.event_id    = LCase( Replace( CreateUUId(), "-", "", "all" ) );
@@ -85,7 +86,11 @@ component output=false {
 		packet.project     = _getProjectId();
 		packet.server_name = cgi.server_name ?: "unknown";
 		packet.request     = _getHttpRequest();
-
+		
+		if ( _useEnvironment() ) {
+			packet.environment = _getEnvironment();
+		}
+		
 		var jsonPacket = SerializeJson( packet );
 		var signature  = _generateSignature( timeVars.time, jsonPacket );
 		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_signature=#signature#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/1.0.0";
@@ -96,7 +101,7 @@ component output=false {
 		}
 	}
 
-	private struct function _getHttpRequest() output=false {
+	private struct function _getHttpRequest() {
 		var httpRequestData = getHTTPRequestData();
 		var rq = {
 			  data         = FORM
@@ -127,7 +132,7 @@ component output=false {
 		return rq;
 	}
 
-	private struct function _getTimeVars() output=false {
+	private struct function _getTimeVars() {
 		var timeVars = {};
 
 		timeVars.utcNowTime = DateConvert( "Local2utc", Now() );
@@ -137,7 +142,7 @@ component output=false {
 		return timeVars;
 	}
 
-	private string function _generateSignature( required string time, required string json ) output=false {
+	private string function _generateSignature( required string time, required string json ) {
 		var messageToSign = ListAppend( arguments.time, arguments.json, " " );
 		var jMsg = JavaCast( "string", messageToSign ).getBytes( "iso-8859-1" );
 		var jKey = JavaCast( "string", _getPrivateKey() ).getBytes( "iso-8859-1" );
@@ -149,40 +154,51 @@ component output=false {
 
 		return LCase( BinaryEncode( mac.doFinal(), 'hex' ) );
 	}
+	
+	private boolean function _useEnvironment() {
+		return len( _getEnvironment() );
+	}
 
 // GETTERS AND SETTERS
-	private string function _getEndpoint() output=false {
+	private string function _getEndpoint() {
 		return _endpoint;
 	}
-	private void function _setEndpoint( required string endpoint ) output=false {
+	private void function _setEndpoint( required string endpoint ) {
 		_endpoint = arguments.endpoint;
 	}
 
-	private string function _getPublicKey() output=false {
+	private string function _getPublicKey() {
 		return _publicKey;
 	}
-	private void function _setPublicKey( required string publicKey ) output=false {
+	private void function _setPublicKey( required string publicKey ) {
 		_publicKey = arguments.publicKey;
 	}
 
-	private string function _getPrivateKey() output=false {
+	private string function _getPrivateKey() {
 		return _privateKey;
 	}
-	private void function _setPrivateKey( required string privateKey ) output=false {
+	private void function _setPrivateKey( required string privateKey ) {
 		_privateKey = arguments.privateKey;
 	}
 
-	private string function _getProjectId() output=false {
+	private string function _getProjectId() {
 		return _projectId;
 	}
-	private void function _setProjectId( required string projectId ) output=false {
+	private void function _setProjectId( required string projectId ) {
 		_projectId = arguments.projectId;
 	}
 
-	private any function _getProtocolVersion() output=false {
+	private any function _getProtocolVersion() {
 		return _protocolVersion;
 	}
-	private void function _setProtocolVersion( required any protocolVersion ) output=false {
+	private void function _setProtocolVersion( required any protocolVersion ) {
 		_protocolVersion = arguments.protocolVersion;
+	}
+	
+	private any function _getEnvironment() {
+		return _environment;
+	}
+	private void function _setEnvironment( required any environment ) {
+		_environment = arguments.environment;
 	}
 }
