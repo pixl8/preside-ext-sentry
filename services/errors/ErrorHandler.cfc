@@ -13,12 +13,16 @@ component {
 		var apiKey = _getApiKey();
 
 		if ( Len( Trim( apiKey ) ) ) {
-			return new SentryClient( apiKey );
+			return new SentryClient( apiKey=apiKey, environment=_getEnvironment() );
 		}
 	}
 
 	private string function _getApiKey() {
 		return application.SENTRY_API_KEY ?: ( application.injectedConfig.SENTRY_API_KEY ?: "" );
+	}
+
+	private string function _getEnvironment() {
+		return application.SENTRY_ENVIRONMENT ?: ( application.injectedConfig.SENTRY_ENVIRONMENT ?: "" );
 	}
 
 }

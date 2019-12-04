@@ -1,8 +1,9 @@
 component {
 
 // CONSTRUCTOR
-	public any function init( required string apiKey, string sentryProtocolVersion="2.0" ) {
+	public any function init( required string apiKey, required string environment, string sentryProtocolVersion="2.0" ) {
 		_setCredentials( arguments.apiKey );
+		_setEnvironment( arguments.environment );
 		_setProtocolVersion( arguments.sentryProtocolVersion );
 
 		return this;
@@ -86,6 +87,10 @@ component {
 		packet.server_name = cgi.server_name ?: "unknown";
 		packet.request     = _getHttpRequest();
 
+		if ( _useEnvironment() ) {
+			packet.environment = _getEnvironment();
+		}
+
 		var jsonPacket = SerializeJson( packet );
 		var signature  = _generateSignature( timeVars.time, jsonPacket );
 		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_signature=#signature#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/1.0.0";
@@ -150,6 +155,10 @@ component {
 		return LCase( BinaryEncode( mac.doFinal(), 'hex' ) );
 	}
 
+	private boolean function _useEnvironment() {
+		return len( _getEnvironment() );
+	}
+
 // GETTERS AND SETTERS
 	private string function _getEndpoint() {
 		return _endpoint;
@@ -184,5 +193,12 @@ component {
 	}
 	private void function _setProtocolVersion( required any protocolVersion ) {
 		_protocolVersion = arguments.protocolVersion;
+	}
+
+	private any function _getEnvironment() {
+		return _environment;
+	}
+	private void function _setEnvironment( required any environment ) {
+		_environment = arguments.environment;
 	}
 }
