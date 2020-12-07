@@ -102,7 +102,7 @@ component {
 	}
 
 	private struct function _getHttpRequest() {
-		var httpRequestData = getHTTPRequestData();
+		var httpRequestData = getHTTPRequestData( false );
 		var rq = {
 			  data         = FORM
 			, cookies      = COOKIE
