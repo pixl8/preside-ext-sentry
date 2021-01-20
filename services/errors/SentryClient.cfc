@@ -28,7 +28,7 @@ component {
 			, level   = "error"
 			, culprit = e.tagContext[1].template ?: "unknown"
 			, extra   = arguments.extraInfo
-			, tags    = arguments.tags
+			, tags    = StructCopy( arguments.tags )
 		};
 
 		packet.extra[ "Java Stacktrace" ] = ListToArray( e.stackTrace ?: "", Chr( 10 ) );
@@ -39,6 +39,13 @@ component {
 		};
 
 		StructAppend( packet.tags, _autoGenerateErrorTags( packet ) );
+
+		for( var tagName in packet.tags ) {
+			if ( Len( tagName ) >= 30 ) {
+				packet.tags[ Left( tagName, 27 ) & "..." ] = packet.tags[ tagName ];
+				StructDelete( packet.tags, tagName );
+			}
+		}
 
 		_apiCall( packet );
 	}
@@ -99,7 +106,7 @@ component {
 			packet.environment = _getEnvironment();
 		}
 		if ( _useAppVersion() ) {
-			package.release = _getAppVersion();
+			packet.release = _getAppVersion();
 		}
 
 		var jsonPacket = SerializeJson( packet );
@@ -175,27 +182,31 @@ component {
 	}
 
 	private struct function _autoGenerateErrorTags( required struct packet ) {
-		var autoTags = {
-			"preside" = _getPresideVersion()
-		};
-		var frames = arguments.packet.exception.stacktrace.frames ?: [];
+		var presideVersion = _getPresideVersion();
+		var autoTags = { "Preside Version" = presideVersion };
 
+		if ( ReFind( "^[0-9]+\.[0-9]+\.[0-9]+", presideVersion ) ) {
+			autoTags[ "Preside Major Version" ] = ReReplace( presideVersion, "^([0-9]+)\.[0-9]+\.[0-9]+.*$", "\1" );
+			autoTags[ "Preside Minor Version" ] = ReReplace( presideVersion, "^([0-9]+)\.([0-9]+)\.[0-9]+.*$", "\1.\2" );
+		}
+
+		var frames = arguments.packet.exception.stacktrace.frames ?: [];
 		for( var frame in frames ) {
 			if ( ( frame.abs_path ?: "" ) contains "/application/extensions/" ) {
 				var extension = ReReplace( frame.abs_path, "^.*/application/extensions/(.*?)/.*$", "\1" );
 
-				autoTags[ extension ] = _getExtensionVersion( extension );
+				StructAppend( autoTags, _getExtensionDetails( extension ) );
 			}
 		}
 
 		return autoTags;
 	}
 
-	private string function _getPresideVersion( required string extension ) {
+	private string function _getPresideVersion() {
 		if ( !StructKeyExists( variables, "_presideVersion" ) ) {
 			try {
 				var manifest = DeserializeJson( FileRead( ExpandPath( "/preside/version.json" ) ) );
-				variables._presideVersion = ReReplace( manifest.version ?: "unknown", "^\", "" );
+				variables._presideVersion = Replace( manifest.version ?: "unknown", "\", "" );
 			} catch( any e ) {
 				variables._presideVersion = "unknown";
 			}
@@ -205,16 +216,17 @@ component {
 
 	}
 
-	private string function _getExtensionVersion( required string extension ) {
+	private struct function _getExtensionDetails( required string extension ) {
 		variables._extensionVersionCache = variables._extensionVersionCache ?: {};
 
 		if ( !StructKeyExists( variables._extensionVersionCache, arguments.extension ) ) {
 			try {
 				var manifest = DeserializeJson( FileRead( ExpandPath( "/app/extensions/#arguments.extension#/manifest.json" ) ) );
-				variables._extensionVersionCache[ arguments.extension ] = manifest.version ?: "unknown";
+				var name = manifest.title ?: Replace( arguments.extension, "preside-ext-", "" );
+				variables._extensionVersionCache[ arguments.extension ] = { "#name#" = manifest.version ?: "unknown" };
 			} catch( any e ) {
-				variables._extensionVersionCache[ arguments.extension ] = "unknown";
-
+				var name = Replace( arguments.extension, "preside-ext-", "" );
+				variables._extensionVersionCache[ arguments.extension ] = { "#name#" = "unknown" };
 			}
 		}
 
