@@ -1,9 +1,15 @@
 component {
 
 // CONSTRUCTOR
-	public any function init( required string apiKey, required string environment, string sentryProtocolVersion="2.0" ) {
+	public any function init(
+		  required string apiKey
+		, required string environment
+		, required string appVersion
+		,          string sentryProtocolVersion="2.0"
+	) {
 		_setCredentials( arguments.apiKey );
 		_setEnvironment( arguments.environment );
+		_setAppVersion( arguments.appVersion );
 		_setProtocolVersion( arguments.sentryProtocolVersion );
 
 		return this;
@@ -90,6 +96,9 @@ component {
 		if ( _useEnvironment() ) {
 			packet.environment = _getEnvironment();
 		}
+		if ( _useAppVersion() ) {
+			package.release = _getAppVersion();
+		}
 
 		var jsonPacket = SerializeJson( packet );
 		var signature  = _generateSignature( timeVars.time, jsonPacket );
@@ -159,6 +168,10 @@ component {
 		return len( _getEnvironment() );
 	}
 
+	private boolean function _useAppVersion() {
+		return len( _getAppVersion() );
+	}
+
 // GETTERS AND SETTERS
 	private string function _getEndpoint() {
 		return _endpoint;
@@ -200,5 +213,12 @@ component {
 	}
 	private void function _setEnvironment( required any environment ) {
 		_environment = arguments.environment;
+	}
+
+	private string function _getAppVersion() {
+	    return _appVersion;
+	}
+	private void function _setAppVersion( required string appVersion ) {
+	    _appVersion = arguments.appVersion;
 	}
 }
