@@ -71,7 +71,7 @@ component {
 				}
 			} );
 
-			frames.append( frame );
+			frames.prepend( frame );
 		}
 
 		return frames;
