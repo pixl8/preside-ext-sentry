@@ -32,6 +32,8 @@ component {
 			, stacktrace =  { frames=_convertTagContext( e.tagContext ?: [] ) }
 		};
 
+		StructAppend( packet.tags, _autoGenerateErrorTags( packet ) );
+
 		_apiCall( packet );
 	}
 
@@ -157,6 +159,54 @@ component {
 
 	private boolean function _useEnvironment() {
 		return len( _getEnvironment() );
+	}
+
+	private struct function _autoGenerateErrorTags( required struct packet ) {
+		var autoTags = {
+			"preside" = _getPresideVersion()
+		};
+		var frames = arguments.packet.exception.stacktrace.frames ?: [];
+
+		for( var frame in frames ) {
+			if ( ( frame.abs_path ?: "" ) contains "/application/extensions/" ) {
+				var extension = ReReplace( frame.abs_path, "^.*/application/extensions/(.*?)/.*$", "\1" );
+
+				autoTags[ extension ] = _getExtensionVersion( extension );
+			}
+		}
+
+		return autoTags;
+	}
+
+	private string function _getPresideVersion( required string extension ) {
+		if ( !StructKeyExists( variables, "_presideVersion" ) ) {
+			try {
+				var manifest = DeserializeJson( FileRead( ExpandPath( "/preside/version.json" ) ) );
+				variables._presideVersion = ReReplace( manifest.version ?: "unknown", "^\", "" );
+			} catch( any e ) {
+				variables._presideVersion = "unknown";
+			}
+		}
+
+		return variables._presideVersion;
+
+	}
+
+	private string function _getExtensionVersion( required string extension ) {
+		variables._extensionVersionCache = variables._extensionVersionCache ?: {};
+
+		if ( !StructKeyExists( variables._extensionVersionCache, arguments.extension ) ) {
+			try {
+				var manifest = DeserializeJson( FileRead( ExpandPath( "/app/extensions/#arguments.extension#/manifest.json" ) ) );
+				variables._extensionVersionCache[ arguments.extension ] = manifest.version ?: "unknown";
+			} catch( any e ) {
+				variables._extensionVersionCache[ arguments.extension ] = "unknown";
+
+			}
+		}
+
+		return variables._extensionVersionCache[ arguments.extension ];
+
 	}
 
 // GETTERS AND SETTERS
