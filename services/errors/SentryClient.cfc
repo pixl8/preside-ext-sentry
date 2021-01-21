@@ -1,9 +1,15 @@
 component {
 
 // CONSTRUCTOR
-	public any function init( required string apiKey, required string environment, string sentryProtocolVersion="2.0" ) {
+	public any function init(
+		  required string apiKey
+		, required string environment
+		, required string appVersion
+		,          string sentryProtocolVersion="7"
+	) {
 		_setCredentials( arguments.apiKey );
 		_setEnvironment( arguments.environment );
+		_setAppVersion( arguments.appVersion );
 		_setProtocolVersion( arguments.sentryProtocolVersion );
 
 		return this;
@@ -22,7 +28,7 @@ component {
 			, level   = "error"
 			, culprit = e.tagContext[1].template ?: "unknown"
 			, extra   = arguments.extraInfo
-			, tags    = arguments.tags
+			, tags    = StructCopy( arguments.tags )
 		};
 
 		packet.extra[ "Java Stacktrace" ] = ListToArray( e.stackTrace ?: "", Chr( 10 ) );
@@ -32,18 +38,30 @@ component {
 			, stacktrace =  { frames=_convertTagContext( e.tagContext ?: [] ) }
 		};
 
+		StructAppend( packet.tags, _autoGenerateErrorTags( packet ) );
+
+		for( var tagName in packet.tags ) {
+			if ( Len( tagName ) >= 30 ) {
+				packet.tags[ Left( tagName, 27 ) & "..." ] = packet.tags[ tagName ];
+				StructDelete( packet.tags, tagName );
+			}
+		}
+
 		_apiCall( packet );
 	}
 
 
 // PRIVATE HELPERS
 	private void function _setCredentials( required string apiKey ) {
-		var regex = "^(https?://)((.*?):(.*?)@)(.*?)/([1-9][0-9]*)$";
+		var regex = "^(https?://)(.*)@(.*?)/([1-9][0-9]*)$";
 
-		_setEndpoint( ReReplaceNoCase( arguments.apiKey, regex, "\1\5" ) & "/api/store/" );
-		_setPublicKey( ReReplaceNoCase( arguments.apiKey, regex, "\3" ) );
-		_setPrivateKey( ReReplaceNoCase( arguments.apiKey, regex, "\4" ) );
-		_setProjectId( ReReplaceNoCase( arguments.apiKey, regex, "\6" ) );
+		if ( reFindNoCase( regex, arguments.apiKey ) ) {
+			var projectId = ReReplaceNoCase( arguments.apiKey, regex, "\4" );
+
+			_setProjectId( projectId );
+			_setEndpoint( ReReplaceNoCase( arguments.apiKey, regex, "\1\3" ) & "/api/#projectId#/store/" );
+			_setPublicKey( ListFirst( ReReplaceNoCase( arguments.apiKey, regex, "\2" ), ":" ) );
+		}
 	}
 
 	private array function _convertTagContext( required array tagContext ) {
@@ -71,7 +89,7 @@ component {
 				}
 			} );
 
-			frames.append( frame );
+			frames.prepend( frame );
 		}
 
 		return frames;
@@ -90,12 +108,15 @@ component {
 		if ( _useEnvironment() ) {
 			packet.environment = _getEnvironment();
 		}
+		if ( _useAppVersion() ) {
+			packet.release = _getAppVersion();
+		}
 
 		var jsonPacket = SerializeJson( packet );
-		var signature  = _generateSignature( timeVars.time, jsonPacket );
-		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_signature=#signature#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/1.0.0";
+		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/3.0.0";
 
 		http url=_getEndpoint() method="POST" timeout=10 {
+			httpparam type="header" value="application/json" name="Content-Type";
 			httpparam type="header" value=authHeader name="X-Sentry-Auth";
 			httpparam type="body"   value=jsonPacket;
 		}
@@ -142,21 +163,64 @@ component {
 		return timeVars;
 	}
 
-	private string function _generateSignature( required string time, required string json ) {
-		var messageToSign = ListAppend( arguments.time, arguments.json, " " );
-		var jMsg = JavaCast( "string", messageToSign ).getBytes( "iso-8859-1" );
-		var jKey = JavaCast( "string", _getPrivateKey() ).getBytes( "iso-8859-1" );
-		var key  = CreateObject( "java", "javax.crypto.spec.SecretKeySpec" ).init( jKey, "HmacSHA1" );
-		var mac  = CreateObject( "java", "javax.crypto.Mac" ).getInstance( key.getAlgorithm() );
-
-		mac.init( key );
-		mac.update( jMsg );
-
-		return LCase( BinaryEncode( mac.doFinal(), 'hex' ) );
-	}
-
 	private boolean function _useEnvironment() {
 		return len( _getEnvironment() );
+	}
+
+	private boolean function _useAppVersion() {
+		return len( _getAppVersion() );
+	}
+
+	private struct function _autoGenerateErrorTags( required struct packet ) {
+		var presideVersion = _getPresideVersion();
+		var autoTags = { "Preside Version" = presideVersion };
+
+		if ( ReFind( "^[0-9]+\.[0-9]+\.[0-9]+", presideVersion ) ) {
+			autoTags[ "Preside Major Version" ] = ReReplace( presideVersion, "^([0-9]+)\.[0-9]+\.[0-9]+.*$", "\1" );
+			autoTags[ "Preside Minor Version" ] = ReReplace( presideVersion, "^([0-9]+)\.([0-9]+)\.[0-9]+.*$", "\1.\2" );
+		}
+
+		var frames = arguments.packet.exception.stacktrace.frames ?: [];
+		for( var frame in frames ) {
+			if ( ( frame.abs_path ?: "" ) contains "/application/extensions/" ) {
+				var extension = ReReplace( frame.abs_path, "^.*/application/extensions/(.*?)/.*$", "\1" );
+
+				StructAppend( autoTags, _getExtensionDetails( extension ) );
+			}
+		}
+
+		return autoTags;
+	}
+
+	private string function _getPresideVersion() {
+		if ( !StructKeyExists( variables, "_presideVersion" ) ) {
+			try {
+				var manifest = DeserializeJson( FileRead( ExpandPath( "/preside/version.json" ) ) );
+				variables._presideVersion = Replace( manifest.version ?: "unknown", "\", "" );
+			} catch( any e ) {
+				variables._presideVersion = "unknown";
+			}
+		}
+
+		return variables._presideVersion;
+
+	}
+
+	private struct function _getExtensionDetails( required string extension ) {
+		variables._extensionVersionCache = variables._extensionVersionCache ?: {};
+
+		if ( !StructKeyExists( variables._extensionVersionCache, arguments.extension ) ) {
+			try {
+				var manifest = DeserializeJson( FileRead( ExpandPath( "/app/extensions/#arguments.extension#/manifest.json" ) ) );
+				var name = manifest.title ?: Replace( arguments.extension, "preside-ext-", "" );
+				variables._extensionVersionCache[ arguments.extension ] = { "#name#" = manifest.version ?: "unknown" };
+			} catch( any e ) {
+				var name = Replace( arguments.extension, "preside-ext-", "" );
+				variables._extensionVersionCache[ arguments.extension ] = { "#name#" = "unknown" };
+			}
+		}
+
+		return variables._extensionVersionCache[ arguments.extension ];
 	}
 
 // GETTERS AND SETTERS
@@ -172,13 +236,6 @@ component {
 	}
 	private void function _setPublicKey( required string publicKey ) {
 		_publicKey = arguments.publicKey;
-	}
-
-	private string function _getPrivateKey() {
-		return _privateKey;
-	}
-	private void function _setPrivateKey( required string privateKey ) {
-		_privateKey = arguments.privateKey;
 	}
 
 	private string function _getProjectId() {
@@ -200,5 +257,12 @@ component {
 	}
 	private void function _setEnvironment( required any environment ) {
 		_environment = arguments.environment;
+	}
+
+	private string function _getAppVersion() {
+	    return _appVersion;
+	}
+	private void function _setAppVersion( required string appVersion ) {
+	    _appVersion = arguments.appVersion;
 	}
 }

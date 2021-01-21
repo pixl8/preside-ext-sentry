@@ -13,7 +13,7 @@ component {
 		var apiKey = _getApiKey();
 
 		if ( Len( Trim( apiKey ) ) ) {
-			return new SentryClient( apiKey=apiKey, environment=_getEnvironment() );
+			return new SentryClient( apiKey=apiKey, environment=_getEnvironment(), appVersion=_getAppVersion() );
 		}
 	}
 
@@ -23,6 +23,10 @@ component {
 
 	private string function _getEnvironment() {
 		return application.SENTRY_ENVIRONMENT ?: ( application.injectedConfig.SENTRY_ENVIRONMENT ?: "" );
+	}
+
+	private string function _getAppVersion() {
+		return application.SENTRY_APP_VERSION ?: ( application.injectedConfig.SENTRY_APP_VERSION ?: "" );
 	}
 
 }
