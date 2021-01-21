@@ -5,7 +5,7 @@ component {
 		  required string apiKey
 		, required string environment
 		, required string appVersion
-		,          string sentryProtocolVersion="2.0"
+		,          string sentryProtocolVersion="7"
 	) {
 		_setCredentials( arguments.apiKey );
 		_setEnvironment( arguments.environment );
@@ -53,12 +53,15 @@ component {
 
 // PRIVATE HELPERS
 	private void function _setCredentials( required string apiKey ) {
-		var regex = "^(https?://)((.*?):(.*?)@)(.*?)/([1-9][0-9]*)$";
+		var regex = "^(https?://)(.*)@(.*?)/([1-9][0-9]*)$";
 
-		_setEndpoint( ReReplaceNoCase( arguments.apiKey, regex, "\1\5" ) & "/api/store/" );
-		_setPublicKey( ReReplaceNoCase( arguments.apiKey, regex, "\3" ) );
-		_setPrivateKey( ReReplaceNoCase( arguments.apiKey, regex, "\4" ) );
-		_setProjectId( ReReplaceNoCase( arguments.apiKey, regex, "\6" ) );
+		if ( reFindNoCase( regex, arguments.apiKey ) ) {
+			var projectId = ReReplaceNoCase( arguments.apiKey, regex, "\4" );
+
+			_setProjectId( projectId );
+			_setEndpoint( ReReplaceNoCase( arguments.apiKey, regex, "\1\3" ) & "/api/#projectId#/store/" );
+			_setPublicKey( ListFirst( ReReplaceNoCase( arguments.apiKey, regex, "\2" ), ":" ) );
+		}
 	}
 
 	private array function _convertTagContext( required array tagContext ) {
@@ -110,10 +113,10 @@ component {
 		}
 
 		var jsonPacket = SerializeJson( packet );
-		var signature  = _generateSignature( timeVars.time, jsonPacket );
-		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_signature=#signature#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/1.0.0";
+		var authHeader = "Sentry sentry_version=#_getProtocolVersion()#, sentry_timestamp=#timeVars.time#, sentry_key=#_getPublicKey()#, sentry_client=raven-presidecms/3.0.0";
 
 		http url=_getEndpoint() method="POST" timeout=10 {
+			httpparam type="header" value="application/json" name="Content-Type";
 			httpparam type="header" value=authHeader name="X-Sentry-Auth";
 			httpparam type="body"   value=jsonPacket;
 		}
@@ -158,19 +161,6 @@ component {
 		timeVars.timeStamp  = Dateformat( timeVars.utcNowTime, "yyyy-mm-dd" ) & "T" & TimeFormat( timeVars.utcNowTime, "HH:mm:ss" );
 
 		return timeVars;
-	}
-
-	private string function _generateSignature( required string time, required string json ) {
-		var messageToSign = ListAppend( arguments.time, arguments.json, " " );
-		var jMsg = JavaCast( "string", messageToSign ).getBytes( "iso-8859-1" );
-		var jKey = JavaCast( "string", _getPrivateKey() ).getBytes( "iso-8859-1" );
-		var key  = CreateObject( "java", "javax.crypto.spec.SecretKeySpec" ).init( jKey, "HmacSHA1" );
-		var mac  = CreateObject( "java", "javax.crypto.Mac" ).getInstance( key.getAlgorithm() );
-
-		mac.init( key );
-		mac.update( jMsg );
-
-		return LCase( BinaryEncode( mac.doFinal(), 'hex' ) );
 	}
 
 	private boolean function _useEnvironment() {
@@ -246,13 +236,6 @@ component {
 	}
 	private void function _setPublicKey( required string publicKey ) {
 		_publicKey = arguments.publicKey;
-	}
-
-	private string function _getPrivateKey() {
-		return _privateKey;
-	}
-	private void function _setPrivateKey( required string privateKey ) {
-		_privateKey = arguments.privateKey;
 	}
 
 	private string function _getProjectId() {
