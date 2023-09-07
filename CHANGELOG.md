@@ -1,6 +1,11 @@
 # Changelog
 
+## v3.1.0
+
+* [#9](https://github.com/pixl8/preside-ext-sentry/issues/9) Report any SQL in the error to Sentry
+
 ## v3.0.0
+
 * #8 Enable new style API endpoint URLs
 * #7 automatically tag issues with preside version and extension versions that appear in the stack trace
 * #1 add ability to set an 'app_version' that sentry will use for the 'release' field in errors

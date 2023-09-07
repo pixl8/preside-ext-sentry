@@ -19,6 +19,7 @@ component {
 	public void function captureException( required struct exception, struct tags={}, struct extraInfo={} ) {
 		var e           = arguments.exception;
 		var errorType   = ( e.type ?: "Unknown type" ) & " error";
+		var sql         = e.sql ?: "";
 		var message     = e.message ?: "";
 		var detail      = e.detail  ?: "";
 		var diagnostics = e.diagnostics  ?: "";
@@ -32,6 +33,10 @@ component {
 		};
 
 		packet.extra[ "Java Stacktrace" ] = ListToArray( e.stackTrace ?: "", Chr( 10 ) );
+		if ( Len( Trim( sql ) ) ) {
+			packet.extra[ "SQL" ] = sql;
+		}
+
 		packet.exception = {
 			  type       =  errorType
 			, value      =  fullMessage
