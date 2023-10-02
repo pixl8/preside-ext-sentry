@@ -178,7 +178,11 @@ component {
 
 	private struct function _autoGenerateErrorTags( required struct packet ) {
 		var presideVersion = _getPresideVersion();
-		var autoTags = { "Preside Version" = presideVersion };
+		var autoTags = { 
+			"Preside Version"   = presideVersion,
+			"Lucee Version"     = server.lucee.version,
+			"Java Version"      = server.java.version
+		};
 
 		if ( ReFind( "^[0-9]+\.[0-9]+\.[0-9]+", presideVersion ) ) {
 			autoTags[ "Preside Major Version" ] = ReReplace( presideVersion, "^([0-9]+)\.[0-9]+\.[0-9]+.*$", "\1" );
