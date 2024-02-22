@@ -1,5 +1,9 @@
 # Changelog
 
+## v3.1.1
+
+* Update build version generator
+
 ## v3.1.0
 
 * [#9](https://github.com/pixl8/preside-ext-sentry/issues/9) Report any SQL in the error to Sentry
